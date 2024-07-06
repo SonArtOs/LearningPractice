@@ -1,0 +1,39 @@
+import requests
+from bs4 import BeautifulSoup
+from fastapi import FastAPI, HTTPException
+
+app = FastAPI()
+
+@app.get("/parse/")
+async def parse_resumes(query: str):
+    url = f'https://hh.ru/search/resume?text={query}'
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    resumes = []
+
+    for item in soup.find_all('div', class_='resume-search-item'):
+        name = item.find('a', class_='resume-search-item__name').text.strip()
+        job_title = item.find('div', class_='resume-search-item__position').text.strip()
+        skills = item.find('div', class_='resume-search-item__skills').text.strip()
+        work_format = item.find('div', class_='resume-search-item__employment-schedule').text.strip()
+
+        resumes.append({
+            'name': name,
+            'job_title': job_title,
+            'skills': skills,
+            'work_format': work_format
+        })
+
+
+    return {"message": f"Найдено и сохранено {len(resumes)} резюме."}
+
+@app.get("/analytics/")
+async def get_analytics():
+    total_resumes = 100
+
+    return {"analytics": f"Всего резюме: {total_resumes}"}
