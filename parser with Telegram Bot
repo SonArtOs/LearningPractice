@@ -1,0 +1,98 @@
+import requests
+from bs4 import BeautifulSoup
+import mysql.connector
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
+
+# Your Telegram bot token
+TELEGRAM_TOKEN = 'token'
+
+
+def parse_resumes(query):
+    url = f'https://hh.ru/search/resume?text={query}'
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    resumes = []
+
+    for item in soup.find_all('div', class_='resume-search-item'):
+        name = item.find('a', class_='resume-search-item__name').text
+        job_title = item.find('div', class_='resume-search-item__position').text.strip()
+        skills = item.find('div', class_='resume-search-item__skills').text.strip()
+        work_format = item.find('div', class_='resume-search-item__employment-schedule').text.strip()
+
+        resumes.append((name, job_title, skills, work_format))
+
+    return resumes
+
+
+def save_to_db(resumes):
+    db = mysql.connector.connect(
+        host="localhost",
+        user="user",
+        password="password",
+        database="my_database"
+    )
+
+    cursor = db.cursor()
+
+    for resume in resumes:
+        cursor.execute("INSERT INTO resumes (name, job_title, skills, work_format) VALUES (%s, %s, %s, %s)", resume)
+
+    db.commit()
+    cursor.close()
+    db.close()
+
+
+def get_analytics():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="asghdf12",
+        database="artdb"
+    )
+
+    cursor = db.cursor()
+    cursor.execute("SELECT COUNT(*) FROM resumes")
+    total_resumes = cursor.fetchone()[0]
+
+    analytics = f'Всего резюме: {total_resumes}'
+
+    cursor.close()
+    db.close()
+
+    return analytics
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text('Привет! Введите запрос для поиска резюме на hh.ru.')
+
+
+async def search_resumes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = ' '.join(context.args)
+    resumes = parse_resumes(query)
+    save_to_db(resumes)
+    await update.message.reply_text(f'Найдено и сохранено {len(resumes)} резюме.')
+
+
+async def analytics(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    data = get_analytics()
+    await update.message.reply_text(data)
+
+
+def main() -> None:
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("search", search_resumes))
+    application.add_handler(CommandHandler("analytics", analytics))
+
+    application.run_polling()
+
+
+if __name__ == '__main__':
+    main()
