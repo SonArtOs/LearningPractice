@@ -12,28 +12,34 @@ async def parse_resumes(query: str):
     }
 
     response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail="Ошибка при запросе к hh.ru")
+
     soup = BeautifulSoup(response.text, 'html.parser')
 
     resumes = []
 
     for item in soup.find_all('div', class_='resume-search-item'):
-        name = item.find('a', class_='resume-search-item__name').text.strip()
-        job_title = item.find('div', class_='resume-search-item__position').text.strip()
-        skills = item.find('div', class_='resume-search-item__skills').text.strip()
-        work_format = item.find('div', class_='resume-search-item__employment-schedule').text.strip()
+        try:
+            name = item.find('a', class_='resume-search-item__name').text.strip()
+            job_title = item.find('div', class_='resume-search-item__position').text.strip()
+            skills = item.find('div', class_='resume-search-item__skills').text.strip()
+            work_format = item.find('div', class_='resume-search-item__employment-schedule').text.strip()
 
-        resumes.append({
-            'name': name,
-            'job_title': job_title,
-            'skills': skills,
-            'work_format': work_format
-        })
-
+            resumes.append({
+                'name': name,
+                'job_title': job_title,
+                'skills': skills,
+                'work_format': work_format
+            })
+        except AttributeError:
+            continue  
 
     return {"message": f"Найдено и сохранено {len(resumes)} резюме."}
 
 @app.get("/analytics/")
 async def get_analytics():
+
     total_resumes = 100
 
     return {"analytics": f"Всего резюме: {total_resumes}"}
